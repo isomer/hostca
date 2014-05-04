@@ -1,0 +1,51 @@
+#!/bin/bash
+
+HOSTCA=${1:-hostca}
+
+TMPTAR=$(mktemp)
+
+# Ask the CA machine to sign keys for us.
+tar -C /etc/ssh -cf - ssh_host_{rsa,dsa,ecdsa,ed25519}_key.pub |
+	ssh ${HOSTCA} PATH=\${PATH}:/usr/local/sbin enroll-host-internal \
+		$(hostname) \
+		$(hostname --fqdn) \
+		$(hostname -I) >${TMPTAR} || {
+	echo Failed to SSH to $HOSTCA to get certificate. >&2
+	exit 1
+}
+sudo tar --backup -C /etc/ssh -xvf ${TMPTAR} --wildcards \
+	ssh_host_*-cert.pub \
+	revoked_keys \
+	host-ca.pub
+
+# Display the keys we've got
+ssh-keygen -L -f /etc/ssh/ssh_host_rsa_key-cert.pub
+ssh-keygen -L -f /etc/ssh/ssh_host_dsa_key-cert.pub
+ssh-keygen -L -f /etc/ssh/ssh_host_ecdsa_key-cert.pub
+ssh-keygen -L -f /etc/ssh/ssh_host_ed25519_key-cert.pub
+
+# Now we need to configure sshd server to present our new certificates
+sudo sed -i.bak '
+/HostCertificate/d
+/^# Add host certificates/d
+$ a
+$ a# Add host certificates
+$ aHostCertificate /etc/ssh/ssh_host_rsa_key-cert.pub
+$ aHostCertificate /etc/ssh/ssh_host_dsa_key-cert.pub
+$ aHostCertificate /etc/ssh/ssh_host_ecdsa_key-cert.pub
+$ aHostCertificate /etc/ssh/ssh_host_ed25519_key-cert.pub
+' /etc/ssh/sshd_config
+
+# And now we need to tell the ssh client to accept host keys signed by
+# the CA.
+if [ ! -f /etc/ssh/ssh_known_hosts ]; then
+	# Sed can't append to an empty file, so make sure there's at least
+	# one empty line in there.
+	sudo sh -c 'echo >> /etc/ssh/ssh_known_hosts'
+fi
+sudo sed -i.bak "
+/.*$(sed 's@[/*+]@.@g' /etc/ssh/host-ca.pub)/d
+1 i@cert-authority * $(cat /etc/ssh/host-ca.pub)
+" /etc/ssh/ssh_known_hosts
+
+sudo service ssh restart

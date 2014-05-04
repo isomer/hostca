@@ -1,0 +1,17 @@
+#!/bin/bash
+TEMPDIR=$(mktemp -d)
+tar -C $TEMPDIR -xf -
+
+ssh-keygen -s /etc/ssh/host-ca \
+     -I "$(hostname --fqdn) host key" \
+     -n "$(IFS=', ' ; echo "$*")" \
+     -h \
+     $TEMPDIR/ssh_host_*_key.pub
+
+cp /etc/ssh/host-ca.pub $TEMPDIR/host-ca.pub
+cp /etc/ssh/revoked_keys $TEMPDIR/revoked_keys
+
+tar -C $TEMPDIR -cf - \
+	ssh_host_{rsa,dsa,ecdsa,ed25519}_key-cert.pub \
+	host-ca.pub \
+	revoked_keys

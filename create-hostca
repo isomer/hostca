@@ -1,0 +1,25 @@
+#!/bin/bash
+
+if [ -f /etc/ssh/host-ca.pub ]; then
+	echo Host CA already exists, refusing to overwrite. 1>&2
+	exit 1
+fi
+
+die() {
+	echo ERROR: $@ 1>&2
+	exit 1
+}
+
+getent group hostca >/dev/null
+if [ $? -eq 2 ]; then
+	addgroup --system hostca || die "Could not create hostca group"
+fi
+
+ssh-keygen -N '' -f /etc/ssh/host-ca -C "$(hostname --domain) host CA" || die "Could not create CA key"
+touch /etc/ssh/revoked_keys || die "Could not create revoked keys file"
+chgrp hostca /etc/ssh/host-ca /etc/ssh/revoked_keys || die "Could not change group"
+chmod 640 /etc/ssh/host-ca /etc/ssh/revoked_keys || die "Could not change permissions"
+
+echo Done
+echo You should add yourself to the hostca group with: adduser \$USER hostca
+
