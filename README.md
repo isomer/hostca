@@ -49,3 +49,20 @@ create a `ssh_known_hosts` file that refers to the CA's public key so that
 logins from this machine will use the CA.
 
 
+Enrolling a client machine
+==========================
+
+If you have a machine that doesn't run an ssh server, but needs to be able to
+verify host keys (eg a laptop or desktop), you can use `enroll-client` to
+add the required CA public keys.  enroll-client takes one parameter, the name
+of a machine you can login to to fetch the CA's public key from.
+
+
+Enrolling a user
+================
+
+`enroll-client` is all well and good if you're an administrator on a machine,
+but if you don't have access to sudo, and you want to validate other machines
+you can use `enroll-user`, which will update `~/.ssh/known_hosts` with the CA
+public key for you.  Once again, enroll-user takes the hostname of an existing
+machine that has the CA installed on it.

@@ -1,0 +1,16 @@
+#!/bin/bash
+
+HOSTCA=${1:-hostca}
+
+CAPUB="$(ssh ${HOSTCA} cat /etc/ssh/host-ca.pub)" || {
+	echo Failed to get CA public key >&2
+	exit 1
+}
+if [ ! -f ~/.ssh/known_hosts ]; then
+	# sed can only append to files that have at least one line.
+	echo >>~/.ssh/known_hosts
+fi
+sed -i.bak -e "
+/@cert-authority . $(echo $CAPUB | sed 's@/@.@g')/d
+$ a@cert-authority * ${CAPUB}
+" ~/.ssh/known_hosts
